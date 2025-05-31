@@ -1,0 +1,288 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tic-Tac-Toe with Back Symbol</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f0f0f0;
+    }
+    h1 {
+      color: #333;
+    }
+    #startScreen, #gameScreen {
+      text-align: center;
+    }
+    #startScreen {
+      display: block;
+    }
+    #gameScreen {
+      display: none;
+      position: relative;
+      width: 100%;
+    }
+    #backSymbol {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 24px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    #backSymbol:hover {
+      background-color: #45a049;
+    }
+    #gameBoard {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      grid-gap: 5px;
+      margin: 20px;
+    }
+    .cell {
+      width: 100px;
+      height: 100px;
+      background-color: white;
+      border: 2px solid #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 40px;
+      cursor: pointer;
+    }
+    .cell:hover {
+      background-color: #e0e0e0;
+    }
+    #status {
+      font-size: 24px;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    #toggleModeButton, #startButton {
+      padding: 10px 20px;
+      font-size: 18px;
+      margin: 10px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #toggleModeButton:hover, #startButton:hover {
+      background-color: #45a049;
+    }
+    input[type="text"] {
+      padding: 8px;
+      font-size: 16px;
+      margin: 10px;
+      width: 200px;
+    }
+    #player2Input {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="startScreen">
+    <h1>Tic-Tac-Toe</h1>
+    <div>
+      <label for="player1Name">Player 1 (X) Name:</label><br>
+      <input type="text" id="player1Name" placeholder="Enter Player 1 name">
+    </div>
+    <div id="player2Input">
+      <label for="player2Name">Player 2 (O) Name:</label><br>
+      <input type="text" id="player2Name" placeholder="Enter Player 2 name">
+    </div>
+    <button id="startButton">Start Game</button>
+    <button id="toggleModeButton">Switch to AI Mode</button>
+  </div>
+  <div id="gameScreen">
+    <button id="backSymbol">←</button>
+    <h1>Tic-Tac-Toe</h1>
+    <div id="status">Player X's turn</div>
+    <div id="gameBoard">
+      <div class="cell" data-index="0"></div>
+      <div class="cell" data-index="1"></div>
+      <div class="cell" data-index="2"></div>
+      <div class="cell" data-index="3"></div>
+      <div class="cell" data-index="4"></div>
+      <div class="cell" data-index="5"></div>
+      <div class="cell" data-index="6"></div>
+      <div class="cell" data-index="7"></div>
+      <div class="cell" data-index="8"></div>
+    </div>
+  </div>
+
+  <script>
+    const startScreen = document.getElementById('startScreen');
+    const gameScreen = document.getElementById('gameScreen');
+    const player1NameInput = document.getElementById('player1Name');
+    const player2NameInput = document.getElementById('player2Name');
+    const player2InputDiv = document.getElementById('player2Input');
+    const startButton = document.getElementById('startButton');
+    const toggleModeButton = document.getElementById('toggleModeButton');
+    const backSymbol = document.getElementById('backSymbol');
+    const cells = document.querySelectorAll('.cell');
+    const status = document.getElementById('status');
+    let currentPlayer = 'X';
+    let board = ['', '', '', '', '', '', '', '', ''];
+    let gameActive = true;
+    let isAIMode = false;
+    let player1Name = 'Player X';
+    let player2Name = 'Player O';
+
+    const winningCombinations = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+      [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+      [0, 4, 8], [2, 4, 6] // Diagonals
+    ];
+
+    function startGame() {
+      player1Name = player1NameInput.value.trim() || 'Player X';
+      player2Name = isAIMode ? 'AI' : (player2NameInput.value.trim() || 'Player O');
+      startScreen.style.display = 'none';
+      gameScreen.style.display = 'block';
+      status.textContent = `${player1Name}'s turn`;
+    }
+
+    function handleCellClick(event) {
+      const index = event.target.dataset.index;
+      if (board[index] !== '' || !gameActive) return;
+
+      board[index] = currentPlayer;
+      event.target.textContent = currentPlayer;
+
+      if (checkWin()) {
+        const winner = currentPlayer === 'X' ? player1Name : player2Name;
+        status.textContent = `${winner} wins!`;
+        gameActive = false;
+        setTimeout(autoReset, 2000); // Auto-reset after 2 seconds
+        return;
+      }
+
+      if (board.every(cell => cell !== '')) {
+        status.textContent = "It's a draw!";
+        gameActive = false;
+        setTimeout(autoReset, 2000); // Auto-reset after 2 seconds
+        return;
+      }
+
+      currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+      const nextPlayer = currentPlayer === 'X' ? player1Name : player2Name;
+      status.textContent = `${nextPlayer}'s turn`;
+
+      if (isAIMode && gameActive && currentPlayer === 'O') {
+        setTimeout(makeAIMove, 500);
+      }
+    }
+
+    function makeAIMove() {
+      const emptyCells = board
+        .map((cell, index) => (cell === '' ? index : null))
+        .filter(index => index !== null);
+      if (emptyCells.length === 0) return;
+
+      const randomIndex = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+      board[randomIndex] = 'O';
+      document.querySelector(`.cell[data-index="${randomIndex}"]`).textContent = 'O';
+
+      if (checkWin()) {
+        status.textContent = `${player2Name} wins!`;
+        gameActive = false;
+        setTimeout(autoReset, 2000); // Auto-reset after 2 seconds
+        return;
+      }
+
+      if (board.every(cell => cell !== '')) {
+        status.textContent = "It's a draw!";
+        gameActive = false;
+        setTimeout(autoReset, 2000); // Auto-reset after 2 seconds
+        return;
+      }
+
+      currentPlayer = 'X';
+      status.textContent = `${player1Name}'s turn`;
+    }
+
+    function checkWin() {
+      return winningCombinations.some(combination => {
+        return combination.every(index => board[index] === currentPlayer);
+      });
+    }
+
+    function autoReset() {
+      board = ['', '', '', '', '', '', '', '', ''];
+      currentPlayer = 'X';
+      gameActive = true;
+      status.textContent = `${player1Name}'s turn`;
+      cells.forEach(cell => (cell.textContent = ''));
+    }
+
+    function goBack() {
+      gameScreen.style.display = 'none';
+      startScreen.style.display = 'block';
+      autoReset();
+    }
+
+    function toggleMode() {
+      isAIMode = !isAIMode;
+      toggleModeButton.textContent = isAIMode ? 'Switch to Two-Player Mode' : 'Switch to AI Mode';
+      player2InputDiv.style.display = isAIMode ? 'none' : 'block';
+      player1NameInput.value = '';
+      player2NameInput.value = '';
+    }
+
+    startButton.addEventListener('click', startGame);
+    cells.forEach(cell => cell.addEventListener('click', handleCellClick));
+    backSymbol.addEventListener('click', goBack);
+    toggleModeButton.addEventListener('click', toggleMode);
+  </script>
+</body>
+</html>
